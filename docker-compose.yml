@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  order-service:
+    image: tanjag/order-service-jvm:1.1.0
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mongo_db
+      - artemis
+    environment:
+      MONGO_DB_URI_3: ${MONGO_DB_URI_3}
+      MONGO_DB_DATABASE_3: ${MONGO_DB_DATABASE_3}
+      QUARKUS_ARTEMIS_URL: tcp://artemis:61616
+    networks:
+      - my-network
+
+  product-service:
+    image: tanjag/ita-product-service:1.0.0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo_db
+    environment:
+      SPRING_DATA_MONGODB_URI: ${MONGO_DB_URI}
+      SPRING_DATA_MONGODB_DATABASE: ${MONGO_DB_DATABASE}
+    networks:
+      - my-network
+
+  user-service:
+    image: tanjag/user_service-jvm:1.0.0
+    ports:
+      - "9000:9000"
+    depends_on:
+      - mongo_db
+    environment:
+      MONGO_DB_URI_2: ${MONGO_DB_URI_2}
+      MONGO_DB_DATABASE_2: ${MONGO_DB_DATABASE_2}
+    networks:
+      - my-network
+
+  mongo_db:
+    image: mongo:7.0.6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - my-network
+
+  artemis:
+    image: vromero/activemq-artemis:latest
+    ports:
+      - "8161:8161" # Web Console
+      - "61616:61616" # AMQP Port
+      - "5445:5445" # Core Port
+    networks:
+      - my-network
+
+  bff-web:
+    image: tanjag/bff-web:1.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - order-service
+      - product-service
+      - user-service
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
