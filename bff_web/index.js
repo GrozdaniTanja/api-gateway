@@ -1,7 +1,7 @@
-// 8080 -> web service
-// 8081 -> product service
-// 8082 -> users service 
-// 8083 -> order service
+// 3000 -> web service
+// 8080 -> product service
+// 9000 -> users service 
+// 8081 -> order service
 
 const express = require("express");
 const app = express();
@@ -12,7 +12,7 @@ app.use(express.json());
 
 
 const orderServiceProxy = createProxyMiddleware({
-    target: "http://localhost:8083",
+    target: "http://order-service:8080",
     changeOrigin: true,
     pathRewrite: {
         "^/order": "/order",
@@ -20,15 +20,12 @@ const orderServiceProxy = createProxyMiddleware({
 });
 
 const productsProxy = createProxyMiddleware({
-    target: 'http://localhost:8081',
+    target: 'http://product-service:8080',
     changeOrigin: true,
     pathRewrite: {
         '^/api/product': '/api/product'
     }
 });
-
-
-
 
 app.use("/order", orderServiceProxy);
 app.use('/api/product', productsProxy);
@@ -44,7 +41,7 @@ const {
 } = require("./generated/proto/user_pb");
 
 const client = new UserServiceClient(
-    'localhost:8082',
+    'user-service:9000',
     grpc.credentials.createInsecure()
 );
 
@@ -112,16 +109,14 @@ app.delete('/user/:id', (req, res) => {
             console.error("Error:", error);
             res.status(500).json({ error: "Internal Server Error" });
         } else {
-            console.log("Membership deleted successfully");
+            console.log("User deleted successfully");
             res.status(204).end();
         }
     });
 });
 
 
-
-
-const PORT = 8080;
+const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`BFF Web listening at http://localhost:${PORT}`);
 });
