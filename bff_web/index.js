@@ -7,8 +7,10 @@ const express = require("express");
 const app = express();
 const grpc = require("@grpc/grpc-js");
 const { createProxyMiddleware } = require("http-proxy-middleware");
+const cors = require("cors");
 
 app.use(express.json());
+app.use(cors());
 
 
 const orderServiceProxy = createProxyMiddleware({
