@@ -8,10 +8,17 @@ const app = express();
 const grpc = require("@grpc/grpc-js");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const cors = require("cors");
+const axios = require('axios');
+const bodyParser = require('body-parser');
+const connectDB = require("./config/database");
+const Log = require("./models/log");
 
-app.use(express.json());
+//app.use(express.json());
+app.use(bodyParser.json({ limit: '50mb', extended: true, type: 'application/json' }));
+
 app.use(cors());
 
+connectDB();
 
 const orderServiceProxy = createProxyMiddleware({
     target: "http://order-service:8080",
@@ -19,6 +26,21 @@ const orderServiceProxy = createProxyMiddleware({
     pathRewrite: {
         "^/order": "/order",
     },
+    onProxyReq: function (proxyReq, req, res) {
+        if (req.body) {
+            let bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+        }
+    },
+    onProxyRes: function (proxyRes, req, res) {
+        console.log(`Proxying request: ${req.method} ${req.url} to ${proxyRes.statusCode} ${proxyRes.statusMessage}`);
+    },
+    onError: function (err, req, res) {
+        console.error('Proxy Error:', err);
+        res.status(500).send('Proxy Error');
+    }
 });
 
 const productsProxy = createProxyMiddleware({
@@ -26,6 +48,14 @@ const productsProxy = createProxyMiddleware({
     changeOrigin: true,
     pathRewrite: {
         '^/api/product': '/api/product'
+    },
+    onProxyReq: function (proxyReq, req, res) {
+        if (req.body) {
+            let bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+        }
     }
 });
 
@@ -115,6 +145,31 @@ app.delete('/user/:id', (req, res) => {
             res.status(204).end();
         }
     });
+});
+
+//Middleware to log requests
+app.use(async (req, res, next) => {
+    const excludedEndpoints = ["/"];
+
+    if (excludedEndpoints.includes(req.path)) {
+        return next();
+    }
+
+    const logEntry = {
+        action: req.path,
+        timestamp: new Date(),
+        method: req.method,
+        url: req.originalUrl,
+    };
+
+    try {
+        const log = new Log(logEntry);
+        await log.save();
+        next();
+    } catch (error) {
+        console.error("Error logging request:", error);
+        next(error);
+    }
 });
 
 
