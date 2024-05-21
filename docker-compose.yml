@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  user-mongo_db:
+    image: mongo:7.0.6
+    ports:
+      - "27017:27017"
+    volumes:
+      - user-mongo-data:/data/db
+    networks:
+      - app-network
+
+  user-service:
+    image: tanjag/user_service-jvm:3.0.0
+    ports:
+      - "9000:9000"
+    depends_on:
+      - user-mongo_db
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://user-mongo_db:27017
+      - QUARKUS_MONGODB_DATABASE=userDB
+    networks:
+      - app-network
+
+  product-mongo_db:
+    image: mongo:7.0.6
+    ports:
+      - "27018:27017"  # Different host port to avoid conflict
+    volumes:
+      - product-mongo-data:/data/db
+    networks:
+      - app-network
+
+  product-service:
+    image: tanjag/ita-product-service:3.0.0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - product-mongo_db
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://product-mongo_db:27017
+      - SPRING_DATA_MONGODB_DATABASE=productDB
+    networks:
+      - app-network
+
+  order-mongo_db:
+    image: mongo:7.0.6
+    ports:
+      - "27019:27017"  
+    volumes:
+      - order-mongo-data:/data/db
+    networks:
+      - app-network
+
+  order-service:
+    image: tanjag/order-service-jvm:3.0.0
+    ports:
+      - "8081:8080"  # Different host port to avoid conflict
+    depends_on:
+      - order-mongo_db
+      - artemis
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://order-mongo_db:27017
+      - QUARKUS_MONGODB_DATABASE=orderDB
+      - QUARKUS_ARTEMIS_URL=tcp://artemis:61616
+    networks:
+      - app-network
+
+  artemis:
+    image: vromero/activemq-artemis:latest
+    ports:
+      - "8161:8161"  # Web Console
+      - "61616:61616" # AMQP Port
+      - "5445:5445"   # Core Port
+    networks:
+      - app-network
+
+  bff-web:
+    image: tanjag/bff-web:3.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - bff-mongo_db
+      - user-service
+      - product-service
+      - order-service
+    environment:
+      - MONGODB_URI=mongodb://bff-mongo_db:27017/logDB
+    networks:
+      - app-network
+
+  bff-mongo_db:
+    image: mongo:7.0.6
+    ports:
+      - "27020:27017"  
+    volumes:
+      - bff-mongo-data:/data/db
+    networks:
+      - app-network
+
+  log-service:
+    image: tanjag/log:3.0.0
+    ports:
+      - "2000:2000"
+    depends_on:
+      - bff-mongo_db
+    environment:
+      - MONGODB_URI=mongodb://bff-mongo_db:27017/logDB
+    networks:
+      - app-network
+
+  health-service:
+    image: tanjag/health-service:3.0.0
+    ports:
+      - "4000:4000"
+    depends_on:
+      - user-service
+      - order-service
+      - product-service
+    environment:
+      - PRODUCT_SERVICE_URL=http://product-service:8080/actuator/health
+      - ORDER_SERVICE_URL=http://order-service:8080/q/health
+      - USER_SERVICE_URL=http://user-service:9000/q/health
+    networks:
+      - app-network
+
+volumes:
+  user-mongo-data:
+  product-mongo-data:
+  order-mongo-data:
+  bff-mongo-data:
+
+networks:
+  app-network:
